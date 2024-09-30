@@ -7,6 +7,12 @@ console.log(`WebSocket server started on ws://localhost:${port}`);
 const clients = new Set();
 let clientIdCounter = 1; 
 
+const TYPE_SETNAME = 1,
+      TYPE_CHAT = 2,
+      TYPE_DISCONNECT = 3,
+      TYPE_POSITION = 4,
+      TYPE_NOTIFICATION = 5;
+
 wss.on('connection', (ws) => {
     // Assign a unique ID to the connected client
     ws.id = clientIdCounter++;
@@ -23,14 +29,14 @@ wss.on('connection', (ws) => {
             const messageType = data.readUInt8(0); // Read the first byte (command type)
             const messageBody = data.slice(1); // Get the rest of the data
             switch(messageType){
-                case 1:
+                case TYPE_SETNAME:
                     let oldname = ws.username
                    // ws.username = messageBody.toString('utf8');
                     const nameupdatemsg = Buffer.from(`_${oldname} _is changing name to: ${ws.username}`);
-                    broadcastBinaryMessage(ws, 2, nameupdatemsg); 
+                    broadcastBinaryMessage(ws, TYPE_NOTIFICATION, nameupdatemsg); 
                 break;
-                case 2:
-                    handleBinaryMessage(ws, messageType, messageBody);
+                case TYPE_CHAT:
+                    handleBinaryMessage(ws, TYPE_CHAT, messageBody);
                 break;
                 default:
                     console.log(`Received mmessageType: ${messageBody}`)
@@ -41,7 +47,7 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         console.log(`Client ${ws.id} (${ws.username}) disconnected`);
         const disconnectMessage = Buffer.from(`${ws.username} has disconnected.`);
-        broadcastBinaryMessage(ws, 2, disconnectMessage); // Assuming message type `1` for disconnection notifications
+        broadcastBinaryMessage(ws, 2, disconnectMessage); 
   
         clients.delete(ws); 
     });
@@ -54,7 +60,10 @@ wss.on('connection', (ws) => {
 
 function handleBinaryMessage(client, messageType, messageBody) {
     switch (messageType) {
-        case 2: // chat message
+        case TYPE_SETNAME:
+            break;
+            
+        case TYPE_CHAT: // chat message
             const playerNameLength = messageBody.readUInt8(0);
             const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
             const chatMessageLength = messageBody.readUInt16BE(1 + playerNameLength);
@@ -65,7 +74,7 @@ function handleBinaryMessage(client, messageType, messageBody) {
             broadcastBinaryMessage(client, messageType, messageBody);
             break;
 
-        case 3: // player coordinates
+        case TYPE_POSITION: // player coordinates
             const x = messageBody.readFloatBE(0);
             const y = messageBody.readFloatBE(4);
             console.log(`Received coordinates from ${client.username}: (${x}, ${y})`);
