@@ -13,6 +13,13 @@ const TYPE_SETNAME = 1,
       TYPE_POSITION = 4,
       TYPE_NOTIFICATION = 5;
 
+const networkHandlers = {
+        [TYPE_SETNAME]: sendSetName,
+        [TYPE_CHAT]: sendChat,
+        [TYPE_POSITION]: sendPosition,
+        [TYPE_NOTIFICATION]: sendNotification,
+      };
+
 wss.on('connection', (ws) => {
     // Assign a unique ID to the connected client
     ws.id = clientIdCounter++;
@@ -21,27 +28,22 @@ wss.on('connection', (ws) => {
     console.log(`Client ${ws.id} connected`);
 
     const newClientMessage = Buffer.from(`${ws.username}`);
-    broadcastBinaryMessage(ws, 1, newClientMessage); // Assuming message type `1` for connection notifications
+    broadcastBinaryMessage(ws, TYPE_SETNAME, newClientMessage); // tell client its randomly assigned name.
 
-    ws.on('message', (data) => {
+
+    ws.on('message', (data) => { // handle incomming data
             console.log(`Received binary ${ws.username}:`, data);
 
             const messageType = data.readUInt8(0); // Read the first byte (command type)
             const messageBody = data.slice(1); // Get the rest of the data
-            switch(messageType){
-                case TYPE_SETNAME:
-                    let oldname = ws.username
-                   // ws.username = messageBody.toString('utf8');
-                    const nameupdatemsg = Buffer.from(`_${oldname} _is changing name to: ${ws.username}`);
-                    broadcastBinaryMessage(ws, TYPE_NOTIFICATION, nameupdatemsg); 
-                break;
-                case TYPE_CHAT:
-                    handleBinaryMessage(ws, TYPE_CHAT, messageBody);
-                break;
-                default:
-                    console.log(`Received mmessageType: ${messageBody}`)
-                break;
-            }
+
+            const NEThandler = networkHandlers[messageType];
+
+            if (NEThandler) {
+                NEThandler(client, messageBody);
+              } else {
+                console.log(`Unknown binary message type: ${messageType}`);
+              }
     });
 
     ws.on('close', () => {
@@ -62,7 +64,7 @@ function handleBinaryMessage(client, messageType, messageBody) {
     switch (messageType) {
         case TYPE_SETNAME:
             break;
-            
+
         case TYPE_CHAT: // chat message
             const playerNameLength = messageBody.readUInt8(0);
             const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
@@ -83,6 +85,9 @@ function handleBinaryMessage(client, messageType, messageBody) {
             broadcastBinaryMessage(client, messageType, messageBody);
             break;
 
+        case TYPE_NOTIFICATION:
+            break;
+
         default:
             console.log(`Unknown binary message type: ${messageType}`);
             break;
@@ -97,6 +102,34 @@ function broadcastBinaryMessage(sender, messageType, messageBody) {
             client.send(fullMessage);
         }
     });
+}
+
+function sendSetName(client,messageBody) {
+
+    const playerNameLength = messageBody.readUInt8(0);
+    const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
+
+    let oldname = client.username
+     
+     const nameupdatemsg = Buffer.from(`_${oldname} _is changing name to: ${playerName}`);
+     const clientUsername = Buffer.from(`${playerName}`);
+
+     handleBinaryMessage(client, TYPE_SETNAME, clientUsername); 
+     broadcastBinaryMessage(client, TYPE_NOTIFICATION, nameupdatemsg); 
+}
+
+function sendChat(client,messageBody){
+    // add profanity filter here
+    handleBinaryMessage(client, TYPE_CHAT, messageBody);
+}
+function sendPosition(client,messageBody){// uhh maybe im repeating my self.
+    //server command could force the use of this.
+    // "/tptome Player_name"
+    handleBinaryMessage(client, TYPE_POSITION, messageBody);
+}
+
+function sendNotification(client,messageBody){
+    handleBinaryMessage(client, TYPE_NOTIFICATION, messageBody);
 }
 
 function getRandomName() {
