@@ -28,7 +28,7 @@ wss.on('connection', (ws) => {
     console.log(`Client ${ws.id} connected`);
 
     const newClientMessage = Buffer.from(`${ws.username}`);
-    broadcastBinaryMessage(ws, TYPE_SETNAME, newClientMessage); // tell client its randomly assigned name.
+    sendBinaryMessageToClient(ws, TYPE_SETNAME, newClientMessage); // tell client its randomly assigned name.
 
 
     ws.on('message', (data) => { // handle incomming data
@@ -83,14 +83,17 @@ function sendBinaryMessageToClient(client, messageType, messageBody) {
 //////////////////////////////////////////////////////////////////////////////////////
 function serverSetName(client,messageBody) { // TYPE_SETNAME
     const playerNameLength = messageBody.readUInt8(0);
-    const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
+    let playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
 
     let oldname = client.username
     client.username = playerName;
      
-     const nameupdatemsg = Buffer.from(`_${oldname} _is changing name to: ${playerName}`);
+    const updatename = Buffer.from(`${playerName}`)
+    const nameupdatemsg = Buffer.from(`_${oldname} changed name to: ${playerName}`);
+    console.log(`attempting new name ${oldname} :;: ${playerName} `)
 
-     sendBinaryMessageToClient(client, TYPE_NOTIFICATION, nameupdatemsg); 
+    broadcastBinaryMessage(client, TYPE_NOTIFICATION, nameupdatemsg); 
+    sendBinaryMessageToClient(client, TYPE_SETNAME, updatename); 
 }
 
 function serverChat(client,messageBody){ // TYPE_CHAT
