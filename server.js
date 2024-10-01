@@ -40,7 +40,7 @@ wss.on('connection', (ws) => {
             const NEThandler = networkHandlers[messageType];
 
             if (NEThandler) {
-                NEThandler(client, messageBody);
+                NEThandler(ws, messageBody);
               } else {
                 console.log(`Unknown binary message type: ${messageType}`);
               }
