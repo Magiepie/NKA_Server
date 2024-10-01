@@ -14,10 +14,10 @@ const TYPE_SETNAME = 1,
       TYPE_NOTIFICATION = 5;
 
 const networkHandlers = {
-        [TYPE_SETNAME]: sendSetName,
-        [TYPE_CHAT]: sendChat,
-        [TYPE_POSITION]: sendPosition,
-        [TYPE_NOTIFICATION]: sendNotification,
+        [TYPE_SETNAME]: serverSetName,
+        [TYPE_CHAT]: serverChat,
+        [TYPE_POSITION]: serverPosition,
+        [TYPE_NOTIFICATION]: serverNotification,
       };
 
 wss.on('connection', (ws) => {
@@ -49,8 +49,7 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         console.log(`Client ${ws.id} (${ws.username}) disconnected`);
         const disconnectMessage = Buffer.from(`${ws.username} has disconnected.`);
-        broadcastBinaryMessage(ws, 2, disconnectMessage); 
-  
+        broadcastBinaryMessage(ws, TYPE_NOTIFICATION, disconnectMessage); 
         clients.delete(ws); 
     });
 
@@ -59,40 +58,6 @@ wss.on('connection', (ws) => {
         clients.delete(ws); 
     });
 });
-
-function handleBinaryMessage(client, messageType, messageBody) {
-    switch (messageType) {
-        case TYPE_SETNAME:
-            break;
-
-        case TYPE_CHAT: // chat message
-            const playerNameLength = messageBody.readUInt8(0);
-            const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
-            const chatMessageLength = messageBody.readUInt16BE(1 + playerNameLength);
-            const chatMessage = messageBody.slice(1 + playerNameLength + 2, 1 + playerNameLength + 2 + chatMessageLength).toString('utf8');
-            
-            console.log(`Player ${playerName} says: ${chatMessage}`);
-            
-            broadcastBinaryMessage(client, messageType, messageBody);
-            break;
-
-        case TYPE_POSITION: // player coordinates
-            const x = messageBody.readFloatBE(0);
-            const y = messageBody.readFloatBE(4);
-            console.log(`Received coordinates from ${client.username}: (${x}, ${y})`);
-            
-            // Optionally update the server state, or just broadcast to other clients
-            broadcastBinaryMessage(client, messageType, messageBody);
-            break;
-
-        case TYPE_NOTIFICATION:
-            break;
-
-        default:
-            console.log(`Unknown binary message type: ${messageType}`);
-            break;
-    }
-}
 
 // Function to broadcast binary messages to all clients
 function broadcastBinaryMessage(sender, messageType, messageBody) {
@@ -104,33 +69,58 @@ function broadcastBinaryMessage(sender, messageType, messageBody) {
     });
 }
 
-function sendSetName(client,messageBody) {
+function sendBinaryMessageToClient(client, messageType, messageBody) {
+    if (client.readyState === WebSocket.OPEN) {
+        const fullMessage = Buffer.concat([Buffer.from([messageType]), messageBody]);
+        client.send(fullMessage);
+    } else {
+        console.log(`Cannot send message to client ${client.id} (${client.username}): WebSocket is not open`);
+    }
+}
 
+//////////////////////////////////////////////////////////////////////////////////////
+//                            networkHandlers                                       //
+//////////////////////////////////////////////////////////////////////////////////////
+function serverSetName(client,messageBody) { // TYPE_SETNAME
     const playerNameLength = messageBody.readUInt8(0);
     const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8');
 
     let oldname = client.username
+    client.username = playerName;
      
      const nameupdatemsg = Buffer.from(`_${oldname} _is changing name to: ${playerName}`);
-     const clientUsername = Buffer.from(`${playerName}`);
 
-     handleBinaryMessage(client, TYPE_SETNAME, clientUsername); 
-     broadcastBinaryMessage(client, TYPE_NOTIFICATION, nameupdatemsg); 
+     sendBinaryMessageToClient(client, TYPE_NOTIFICATION, nameupdatemsg); 
 }
 
-function sendChat(client,messageBody){
-    // add profanity filter here
-    handleBinaryMessage(client, TYPE_CHAT, messageBody);
-}
-function sendPosition(client,messageBody){// uhh maybe im repeating my self.
-    //server command could force the use of this.
-    // "/tptome Player_name"
-    handleBinaryMessage(client, TYPE_POSITION, messageBody);
+function serverChat(client,messageBody){ // TYPE_CHAT
+    const playerNameLength = messageBody.readUInt8(0);
+    const playerName = messageBody.slice(1, 1 + playerNameLength).toString('utf8'); // can do away with this now we have setname server side
+    const chatMessageLength = messageBody.readUInt16BE(1 + playerNameLength);
+    const chatMessage = messageBody.slice(1 + playerNameLength + 2, 1 + playerNameLength + 2 + chatMessageLength).toString('utf8');
+    
+    console.log(`Player ${playerName} says: ${chatMessage}`);
+    
+    broadcastBinaryMessage(client, TYPE_CHAT, messageBody);
 }
 
-function sendNotification(client,messageBody){
-    handleBinaryMessage(client, TYPE_NOTIFICATION, messageBody);
+function serverPosition(client,messageBody){ // TYPE_POSITION
+    const x = messageBody.readFloatBE(0);
+    const y = messageBody.readFloatBE(4);
+    console.log(`Received coordinates from ${client.username}: (${x}, ${y})`);
+    
+    // Optionally update the server state, or just broadcast to other clients
+    broadcastBinaryMessage(client, TYPE_POSITION, messageBody);
 }
+
+function serverNotification(client,messageBody){ // TYPE_NOTIFICATION
+    
+    broadcastBinaryMessage(client, TYPE_NOTIFICATION, messageBody);
+}
+//////////////////////////////////////////////////////////////////////////////////////
+//                           END_networkHandlers                                    //
+//////////////////////////////////////////////////////////////////////////////////////
+
 
 function getRandomName() {
     const randomIndex = Math.floor(Math.random() * names.length);
