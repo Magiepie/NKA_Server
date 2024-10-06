@@ -32,8 +32,6 @@ const serverCommands ={
         ["list"]: listClients,
         ["kick"]: kickClient,
         ["broadcast"]: broadcastMessage
-
-
 }
 
 const readingline = readline.createInterface({
@@ -70,7 +68,7 @@ function listClients() {
 
 function kickClient(args) {
     if (args.length === 0) {
-        console.log('Usage: /kick <client_id>');
+        console.log('Usage: kick <client_id>');
         return;
     }
     const clientId = parseInt(args[0]);
@@ -84,7 +82,7 @@ function kickClient(args) {
     }
 }
 
-function broadcastMessage(message) {//args.join(' ')
+function broadcastMessage(message) {
     const messageBuffer = Buffer.from(message.join(' '), 'utf8');
     broadcastBinaryMessage(null, TYPE_NOTIFICATION, messageBuffer);
     console.log(`Broadcasted message: ${message}`);
@@ -98,11 +96,13 @@ wss.on('connection', (ws) => {
     console.log(`ClientID:${ws.id}: ${ws.username} connected`);
     players[ws.id] = { id: ws.id, username: ws.username };// add to active player list
 
+
+    // dont forget to clean this code up latter!!!!!
     const playerListBuffer = createPlayerListBuffer(players); //buffer a list to send
     //const fullPlayerListBuffer = Buffer.concat([Buffer.from([TYPE_NET_PLAYER_LIST]), playerListBuffer]);// buffer list with TYPE
  //  ws.send(fullPlayerListBuffer); // send the player list to the new client
     sendBinaryMessageToClient(ws,TYPE_NET_PLAYER_LIST,playerListBuffer)
-    console.log(`playerbuff ${players} `,playerListBuffer);
+    console.log(`playerbuff ${playerListBuffer} `,playerListBuffer);
     
     const newClientMessage = Buffer.from(`${ws.username}`);
     sendBinaryMessageToClient(ws, TYPE_SETNAME, newClientMessage); // tell client its randomly assigned name.
@@ -206,36 +206,6 @@ function serverNotification(client,messageBody){ // TYPE_NOTIFICATION
 //                           END_networkHandlers                                    //
 //////////////////////////////////////////////////////////////////////////////////////
 
-// function createPlayerBuffer(clientId, clientName) {
-//     // Convert client ID and name to buffers
-//     const clientIdBuffer = Buffer.from(clientId, 'utf8');
-//     const clientNameBuffer = Buffer.from(clientName, 'utf8');
-
-//     // Allocate buffer length: 
-//     // 1 byte for cl_id_length + client ID length + 2 bytes for clientName_length + client name length
-//     const bufferLength = 1 + clientIdBuffer.length + 2 + clientNameBuffer.length;
-//     const buffer = Buffer.alloc(bufferLength);
-
-//     // Offset for writing data into the buffer
-//     let offset = 0;
-
-//     // Write cl_id_length (UInt8)
-//     buffer.writeUInt8(clientIdBuffer.length, offset);
-//     offset += 1;
-
-//     // Write client_id (string as bytes)
-//     clientIdBuffer.copy(buffer, offset);
-//     offset += clientIdBuffer.length;
-
-//     // Write clientName_length (UInt16)
-//     buffer.writeUInt16BE(clientNameBuffer.length, offset);
-//     offset += 2;
-
-//     // Write clientname (string as bytes)
-//     clientNameBuffer.copy(buffer, offset);
-
-//     return buffer;
-// }
 
 function createPlayerListBuffer(players) {
     const buffers = [];
@@ -249,11 +219,11 @@ function createPlayerListBuffer(players) {
 }
 
 function createPlayerBuffer(player) {
-    const idBuffer = Buffer.alloc(4);
-    idBuffer.writeUInt32BE(player.id);
-
+    const idBuffer = Buffer.alloc(1);
+    idBuffer.writeUInt8(player.id);
+    console.log("player id",player.id)
     const nameBuffer = Buffer.from(player.username, 'utf8'); // Corrected to use the actual player.username
-    const nameLengthBuffer = Buffer.alloc(1);
+    const nameLengthBuffer = Buffer.alloc(2);
     nameLengthBuffer.writeUInt8(nameBuffer.length);
 
     return Buffer.concat([idBuffer, nameLengthBuffer, nameBuffer]);
