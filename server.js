@@ -99,10 +99,9 @@ wss.on('connection', (ws) => {
 
     // dont forget to clean this code up latter!!!!!
     const playerListBuffer = createPlayerListBuffer(players); //buffer a list to send
-    //const fullPlayerListBuffer = Buffer.concat([Buffer.from([TYPE_NET_PLAYER_LIST]), playerListBuffer]);// buffer list with TYPE
- //  ws.send(fullPlayerListBuffer); // send the player list to the new client
+
     sendBinaryMessageToClient(ws,TYPE_NET_PLAYER_LIST,playerListBuffer)
-    console.log(`playerbuff ${playerListBuffer} `,playerListBuffer);
+    console.log(`playerbuff `,playerListBuffer);
     
     const newClientMessage = Buffer.from(`${ws.username}`);
     sendBinaryMessageToClient(ws, TYPE_SETNAME, newClientMessage); // tell client its randomly assigned name.
@@ -221,9 +220,9 @@ function createPlayerListBuffer(players) {
 function createPlayerBuffer(player) {
     const idBuffer = Buffer.alloc(1);
     idBuffer.writeUInt8(player.id);
-    console.log("player id",player.id)
+    console.log("player id",player.id, "Name: ",player.username)
     const nameBuffer = Buffer.from(player.username, 'utf8'); // Corrected to use the actual player.username
-    const nameLengthBuffer = Buffer.alloc(2);
+    const nameLengthBuffer = Buffer.alloc(1);
     nameLengthBuffer.writeUInt8(nameBuffer.length);
 
     return Buffer.concat([idBuffer, nameLengthBuffer, nameBuffer]);
